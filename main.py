@@ -15,9 +15,9 @@ from typing import Optional
 load_dotenv()
 
 # Now you can use os.getenv to access the variables
-openai_api_key = os.getenv('OPENAI_API_KEY')
-qdrant_api_key = os.getenv('QDRANT_API_KEY')
-qdrant_endpoint = os.getenv('QDRANT_CLOUD_URL')
+openai_api_key = os.getenv('openai-api')
+qdrant_api_key = os.getenv('qdrant-api')
+qdrant_endpoint = os.getenv('qdrant-endpoint')
 
 
 

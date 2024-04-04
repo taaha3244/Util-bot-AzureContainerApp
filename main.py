@@ -36,9 +36,9 @@ def util_bot(question: str) -> Optional[str]:
 
     try:
         # Environment variable setup
-        openai_api_key = os.getenv('OPENAI_API_KEY')
-        qdrant_api_key = os.getenv('QDRANT_API_KEY')
-        qdrant_endpoint = os.getenv('QDRANT_CLOUD_URL')
+        openai_api_key = os.getenv('openai-api')
+        qdrant_api_key = os.getenv('qdrant-api')
+        qdrant_endpoint = os.getenv('qdrant-endpoint')
 
         # Initialization
         embeddings_model = OpenAIEmbeddings(model='text-embedding-3-small', openai_api_key=openai_api_key)

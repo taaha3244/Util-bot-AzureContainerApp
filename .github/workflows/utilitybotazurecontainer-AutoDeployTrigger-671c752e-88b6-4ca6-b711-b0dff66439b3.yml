@@ -1,0 +1,47 @@
+name: Trigger auto deployment for utilitybotazurecontainer
+
+# When this action will be executed
+on:
+  # Automatically trigger it when detected changes in repo
+  push:
+    branches: 
+      [ main ]
+    paths:
+    - '**'
+    - '.github/workflows/utilitybotazurecontainer-AutoDeployTrigger-671c752e-88b6-4ca6-b711-b0dff66439b3.yml'
+
+  # Allow manual trigger 
+  workflow_dispatch:      
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions: 
+      id-token: write #This is required for requesting the OIDC JWT Token
+      contents: read #Required when GH token is used to authenticate with private repo
+
+    steps:
+      - name: Checkout to the branch
+        uses: actions/checkout@v2
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.UTILITYBOTAZURECONTAINER_AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.UTILITYBOTAZURECONTAINER_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.UTILITYBOTAZURECONTAINER_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push container image to registry
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          appSourcePath: ${{ github.workspace }} 
+          registryUrl: utilitybotazurecontainer.azurecr.io
+          registryUsername: ${{ secrets.UTILITYBOTAZURECONTAINER_REGISTRY_USERNAME }}
+          registryPassword: ${{ secrets.UTILITYBOTAZURECONTAINER_REGISTRY_PASSWORD }}
+          containerAppName: utilitybotazurecontainer
+          resourceGroup: utilitybotazurecontainer
+          imageToBuild: utilitybotazurecontainer.azurecr.io/utilitybotazurecontainer:${{ github.sha }}
+          _buildArgumentsKey_: |
+            _buildArgumentsValues_
+
+

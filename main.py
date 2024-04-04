@@ -1,5 +1,6 @@
 
 import os
+from langchain import hub
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Qdrant
 from qdrant_client import QdrantClient
@@ -9,28 +10,24 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 from typing import Optional
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Now you can use os.getenv to access the variables
-openai_api_key = os.getenv('OPENAI_API_KEY')
-qdrant_api_key = os.getenv('QDRANT_API_KEY')
-qdrant_endpoint = os.getenv('QDRANT_CLOUD_URL')
 
 
-
-def util_bot(question: str) :
+def util_bot(question: str) -> Optional[str]:
     """
     Processes a given question using a combination of Qdrant vector search and an LLM (Large Language Model) response generation.
-
     This function embeds the input question using OpenAI's embedding model, searches for relevant context using Qdrant,
     and generates a response based on the context found and the input question using an LLM.
 
     Args:
         question (str): The user's question to be answered.
-        openai_api_key (str): API key for accessing OpenAI's services.
 
     Returns:
         Optional[str]: The generated answer, or None if no answer could be generated.
@@ -39,60 +36,43 @@ def util_bot(question: str) :
         Exception: If an error occurs during processing.
     """
 
-
-    # Initialize Qdrant client
-    qdrant_client = QdrantClient(url=qdrant_endpoint, api_key=qdrant_api_key)
-
-    # Initialize embeddings using OpenAI
-    embeddings = OpenAIEmbeddings(model='text-embedding-3-small', openai_api_key=openai_api_key)
-
     try:
-        # Embed the input question for vector search
-        query_result = embeddings.embed_query(question)
+        # Environment variable setup
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        qdrant_api_key = os.getenv('QDRANT_API_KEY')
+        qdrant_endpoint = os.getenv('QDRANT_CLOUD_URL')
 
-        # Perform vector search in the "util-bot" collection
-        response = qdrant_client.search(
-            collection_name="util-bot-quantized",
-            query_vector=query_result,
-            limit=3  # Retrieve top 3 closest vectors
-        )
+        # Initialization
+        embeddings_model = OpenAIEmbeddings(model='text-embedding-3-small', openai_api_key=openai_api_key)
+        qdrant_client = QdrantClient(url=qdrant_endpoint, api_key=qdrant_api_key)
+        qdrant = Qdrant(client=qdrant_client, collection_name="multiple-util-bot-quanntized",
+                        embeddings=embeddings_model)
+        retriever = qdrant.as_retriever(search_kwargs={"k": 10})
+
+        # Retrieve documents
+        docs = retriever.get_relevant_documents(question)
 
         # Construct the prompt template for the LLM
-        prompt=PromptTemplate(
-        template=""""
-        Given the context from the utility bills document, answer the following question. The document includes general text, definitions, formulas, and charts related to utility bills. Use the information provided in the document to construct your answer. If the answer is not explicitly found in the document, it's okay to say "The context does not include any reference for the question asked" instead of guessing.
+        prompt = hub.pull("pwoc517/more-crafted-rag-prompt")
+        # RAG Chain
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, openai_api_key=openai_api_key)
 
-        Example:
-        Question: What is the formula for calculating the monthly electricity bill?
-        Answer:
-        ```
-         The monthly electricity bill is calculated using the formula: Bill = Rate per kWh * Number of kWh consumed. This formula takes into account the rate charged per kilowatt-hour (kWh) and the total energy consumption in kWh.
-        ```
+        def format_docs(docs):
+            return "\n\n".join(doc.page_content for doc in docs)
 
-        <utility_bills_document>
-        {context}
-        </utility_bills_document>
+        rag_chain = (
+            {"context": retriever | format_docs, "question": RunnablePassthrough()}
+            | prompt
+            | llm
+            | StrOutputParser()
+        )
 
-        Question: {question}
+        result = rag_chain.invoke(question)
+        return result
 
-        Helpful Answer:
-        """,
-        input_variables=["context", "question"]
-)
-
-
-        # Initialize LLM and the chain for generating the response
-        llm = ChatOpenAI(model='gpt-3.5-turbo-0125',openai_api_key=openai_api_key)
-        chain = LLMChain(llm=llm, prompt=prompt)
-
-        # Generate the response
-        result = chain({
-            "question": question,
-            "context": "\n".join([doc.payload['page_content'] for doc in response])  # Concatenate context from search results
-        })
-
-        return result['text']
     except Exception as e:
-        # Log the exception or handle it as per the application's error handling policy
-        print(f"Error processing question: {e}")
+        print(f"Error processing the query: {e}")
         return None
+
+util_bot('What is the peak time during summers according to E6 and what are the charges??')
+

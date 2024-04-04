@@ -17,8 +17,6 @@ from typing import Optional
 # Load environment variables from .env file
 load_dotenv()
 
-# Now you can use os.getenv to access the variables
-
 
 def util_bot(question: str) -> Optional[str]:
     """
